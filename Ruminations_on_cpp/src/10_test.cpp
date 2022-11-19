@@ -14,6 +14,14 @@ class PNode;
 class Picture
 {
     friend ostream &operator<<(ostream &o, const Picture &p);
+    friend Picture frame(const Picture &);
+    friend Picture operator&(const Picture &, const Picture &);
+    friend Picture operator|(const Picture &, const Picture &);
+    friend class StringPic;
+    friend class FramePic;
+    friend class VCatPic;
+    friend class HCatPic;
+    friend Picture reframe(const Picture &, char, char, char);
 
 public:
     Picture();
@@ -27,6 +35,7 @@ private:
     int height() const;
     int width() const;
     void display(ostream &, int, int) const;
+    Picture(PNode *);
 };
 
 ostream &operator<<(ostream &o, const Picture &pic)
@@ -43,6 +52,7 @@ ostream &operator<<(ostream &o, const Picture &pic)
 class PNode
 {
     friend class Picture;
+    friend Picture reframe(const Picture &, char, char, char);
 
 public:
     PNode() : use(1) {}
@@ -50,10 +60,15 @@ public:
     virtual int height() const = 0;
     virtual int width() const = 0;
     virtual void display(ostream &, int, int) const = 0;
+    virtual Picture reframe(char, char, char) = 0;
 
-private:
+protected:
     int use;
 };
+Picture reframe(const Picture &org, char a, char b, char c)
+{
+    return org.p->reframe(a, b, c);
+}
 class StringPic : public PNode
 {
     friend class Picture;
@@ -95,64 +110,145 @@ class StringPic : public PNode
             start = strlen(data[row]);
         }
         pad(o, start, width);
-    };
+    }
+    Picture reframe(char a, char b, char c)
+    {
+        use++;
+        return this;
+    }
+
     char **data;
     int size;
 };
 class FramePic : public PNode
 {
+    friend Picture frame(const Picture &pic);
+    FramePic(const Picture &pic, char c = '+', char t = '-', char s = '|') : p(pic), ccorner(c), ctop(t), cside(s) {}
+    int height() const
+    {
+        return p.height() + 2;
+    };
+    int width() const
+    {
+        return p.width() + 2;
+    };
+    void display(ostream &o, int row, int width) const
+    {
+
+        if (row >= 0 && row < height())
+        {
+            if (row == 0 || row == height() - 1)
+            {
+                o << ccorner;
+                int i = p.width();
+                while (--i >= 0)
+                {
+                    o << ctop;
+                }
+                o << ccorner;
+            }
+            else
+            {
+                o << cside;
+                p.display(o, row - 1, p.width());
+                o << cside;
+            }
+            pad(o, this->width(), width);
+        }
+        else
+        {
+            pad(o, 0, width);
+        }
+    }
+    Picture reframe(char a, char b, char c)
+    {
+        return new FramePic(::reframe(p, a, b, c), a, b, c);
+    }
+    Picture p;
+    char ccorner;
+    char ctop;
+    char cside;
 };
+
 class VCatPic : public PNode
 {
+    friend Picture operator|(const Picture &, const Picture &);
+    Picture p_top;
+    Picture p_bottom;
+    int height() const
+    {
+        return p_top.height() + p_bottom.height();
+    };
+    int width() const
+    {
+        return max(p_top.width(), p_bottom.width());
+    };
+    void display(ostream &o, int row, int width) const
+    {
+        if (row >= 0 && row < p_top.height())
+        {
+            p_top.display(o, row, width);
+        }
+        else if (row < this->height())
+        {
+            p_bottom.display(o, row - p_top.height(), width);
+        }
+        else
+        {
+            pad(o, 0, width);
+        }
+    }
+    VCatPic(const Picture &a, const Picture &b) : p_top(a), p_bottom(b) {}
+    Picture reframe(char a, char b, char c)
+    {
+        return new VCatPic(::reframe(p_top, a, b, c), ::reframe(p_bottom, a, b, c));
+    }
 };
 class HCatPic : public PNode
 {
+    friend Picture operator&(const Picture &, const Picture &);
+    Picture p_left;
+    Picture p_right;
+    int height() const
+    {
+        return max(p_left.height(), p_right.height());
+    };
+    int width() const
+    {
+        return p_left.width() + p_right.width();
+    };
+    void display(ostream &o, int row, int width) const
+    {
+        if (row >= 0 && row < this->height())
+        {
+            p_left.display(o, row, p_left.width());
+            p_right.display(o, row, p_right.width());
+            pad(o, this->width(), width);
+        }
+        else
+        {
+            pad(o, 0, width);
+        }
+    }
+    HCatPic(const Picture &a, const Picture &b) : p_left(a), p_right(b) {}
+    Picture reframe(char a, char b, char c)
+    {
+        return new HCatPic(::reframe(p_left, a, b, c), ::reframe(p_right, a, b, c));
+    }
 };
 
-// Picture frame(const Picture &p)
-// {
-//     Picture res;
-//     res.init(p.height + 2, p.width + 2);
-//     res.position(0, 0) = '+';
-//     res.position(0, p.width + 1) = '+';
-//     res.position(p.height + 1, p.width + 1) = '+';
-//     res.position(p.height + 1, 0) = '+';
-//     for (int i = 1; i < p.width + 1; ++i)
-//     {
-//         res.position(0, i) = '-';
-//         res.position(p.height + 1, i) = '-';
-//     }
-//     for (int i = 1; i < p.height + 1; ++i)
-//     {
-//         res.position(i, 0) = '|';
-//         res.position(i, p.width + 1) = '|';
-//     }
-//     res.copyblock(1, 1, p);
-//     return res;
-// }
-
-// Picture operator&(const Picture &p_left, const Picture &p_right)
-// {
-//     Picture res;
-//     res.init(max(p_left.height, p_right.height), p_left.width + p_right.width);
-//     res.clear(p_left.height, 0, res.height, p_left.width);
-//     res.clear(p_right.height, p_left.width, res.height, res.width);
-
-//     res.copyblock(0, 0, p_left);
-//     res.copyblock(0, p_left.width, p_right);
-//     return res;
-// }
-// Picture operator|(const Picture &p_top, const Picture &p_bottom)
-// {
-//     Picture res;
-//     res.init(max(p_top.width, p_bottom.width), p_top.height + p_bottom.height);
-//     res.clear(0, p_top.width, p_top.height, res.width);
-//     res.clear(p_top.height, p_bottom.width, res.height, res.width);
-
-//     res.copyblock(0, 0, p_top);
-//     res.copyblock(p_top.height, 0, p_bottom);
-//     return res;
-// }
+Picture frame(const Picture &pic)
+{
+    return new FramePic(pic);
+}
+Picture operator&(const Picture &a, const Picture &b)
+{
+    return new HCatPic(a, b);
+}
+Picture operator|(const Picture &a, const Picture &b)
+{
+    return new VCatPic(a, b);
+}
 
 char *init[] = {"Paris", "in the", "Spring"};
 int main()
@@ -160,15 +256,18 @@ int main()
     Picture p(init, 3);
     cout << p << endl;
 
-    // Picture q = frame(p);
-    // cout << q << endl;
+    Picture q = frame(p);
+    cout << q << endl;
 
-    // Picture r = p | q;
-    // cout << r << endl;
+    Picture r = p | q;
+    cout << r << endl;
 
-    // Picture s = q & r;
-    // cout << s << endl
-    //      << frame(s) << endl;
+    Picture s = q & r;
+    cout << s << endl
+         << frame(s) << endl;
+
+    Picture wzq = reframe(frame(s), '*', '*', '*');
+    cout << wzq << endl;
 }
 
 Picture::Picture() : p(0) {}
@@ -209,3 +308,5 @@ void Picture::display(ostream &o, int x, int y) const
 {
     p->display(o, x, y);
 };
+
+Picture::Picture(PNode *a) : p(a) {}
