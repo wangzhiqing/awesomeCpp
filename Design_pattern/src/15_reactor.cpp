@@ -92,90 +92,92 @@ void Process(Base *type)
 //     return 0;
 // }
 
-typedef void *(*CreateFuntion)(void);
+typedef void *(*PTRCreateObject)(void);
 
+// 工厂类的定义
 class ClassFactory
 {
-public:
-    static void *GetClassByName(std::string name)
-    {
-        std::map<std::string, CreateFuntion>::const_iterator find;
-        find = m_clsMap.find(name);
-        if (find == m_clsMap.end())
-        {
-            return NULL;
-        }
-        else
-        {
-            return find->second();
-        }
-    }
-    static void RegistClass(std::string name, CreateFuntion method)
-    {
-        m_clsMap.insert(std::make_pair(name, method));
-    }
-
 private:
-    static std::map<std::string, CreateFuntion> m_clsMap;
+    std::map<std::string, PTRCreateObject> m_classMap;
+    ClassFactory(){}; // 构造函数私有化
+
+public:
+    void *getClassByName(std::string className);
+    void registClass(std::string name, PTRCreateObject method);
+    static ClassFactory &getInstance();
 };
 
-std::map<std::string, CreateFuntion> ClassFactory::m_clsMap;
+// 工厂类的实现
+//@brief:获取工厂类的单个实例对象
+ClassFactory &ClassFactory::getInstance()
+{
+    static ClassFactory sLo_factory;
+    return sLo_factory;
+}
 
-class RegistyClass
+//@brief:通过类名称字符串获取类的实例
+void *ClassFactory::getClassByName(std::string className)
+{
+    auto iter = m_classMap.find(className);
+    if (iter == m_classMap.end())
+        return NULL;
+    else
+        return iter->second();
+}
+
+//@brief:将给定的类名称字符串和对应的创建类对象的函数保存到map中
+void ClassFactory::registClass(std::string name, PTRCreateObject method)
+{
+    m_classMap.insert(make_pair(name, method));
+}
+
+// 注册动作类
+class RegisterAction
 {
 public:
-    RegistyClass(std::string name, CreateFuntion method)
+    RegisterAction(std::string className, PTRCreateObject ptrCreateFn)
     {
-
-        ClassFactory::RegistClass(name, method);
+        ClassFactory::getInstance().registClass(className, ptrCreateFn);
     }
 };
 
-template <class T, const char name[]>
-class Register
+#define REGISTER(className)                      \
+    className *objectCreator##className()        \
+    {                                            \
+        return new className;                    \
+    }                                            \
+    RegisterAction g_creatorRegister##className( \
+        #className, (PTRCreateObject)objectCreator##className)
+
+// test class A
+class TestClassA
 {
 public:
-    Register()
+    virtual void m_print()
     {
-
-        const RegistyClass tmp = rc;
-    }
-
-    static void *CreateInstance()
-    {
-
-        return new T;
-    }
-
-public:
-    static const RegistyClass rc;
+        cout << "hello TestClassA" << endl;
+    };
 };
 
-template <class T, const char name[]>
-const RegistyClass Register<T, name>::rc(name, Register<T, name>::CreateInstance);
+REGISTER(TestClassA);
 
-#define DEFINE_CLASS(class_name)    \
-    char NameArray[] = #class_name; \
-    class class_name : public Register<class_name, NameArray>
+// test class B
+class TestClassB : public TestClassA
+{
+public:
+    void m_print()
+    {
+        cout << "hello TestClassB" << endl;
+    };
+};
 
-#define DEFINE_CLASS_EX(class_name, father_class) \
-    char NameArray[] = #class_name;               \
-    class class_name : public Register<class_name, NameArray>, public father_class
-
-DEFINE_CLASS(CG){
-    public :
-        void Display(){
-            printf("I am Here\n");
-}
-}
-;
+REGISTER(TestClassB);
 
 int main(int tt)
 {
 
-    CG *tmp = (CG *)ClassFactory::GetClassByName("CG");
-
-    tmp->Display();
+    TestClassA *ptrObj = (TestClassA *)ClassFactory::getInstance().getClassByName("TestClassB");
+    ptrObj->m_print();
 
     return 0;
 }
