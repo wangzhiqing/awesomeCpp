@@ -36,3 +36,9 @@ build/
 #model
 *.pth
 *.onnx
+
+# Ignore vscode settings.
+.vscode/
+
+# Ignore gtest head
+Code_Quality/include/
