@@ -1,6 +1,16 @@
 cmake_minimum_required(VERSION 2.8)
 set(CMAKE_CXX_STANDARD 11)
 
+include(cmake/git_version.cmake)
+set(GIT_HASH "")
+set(GIT_BRANCH "")
+set(GIT_DATETIME "")
+get_git_hash(GIT_HASH)
+get_git_branch(GIT_BRANCH)
+get_git_date_time(GIT_DATETIME)
+message(" git hash: ${GIT_HASH}\n git branch: ${GIT_BRANCH} \n git data: ${GIT_DATETIME}")
+configure_file("cmake/repo_version.h.cmake" "repo_version.h")
+
 add_subdirectory(Ruminations_on_cpp)
 add_subdirectory(Design_pattern)
 add_subdirectory(CS_APP)
